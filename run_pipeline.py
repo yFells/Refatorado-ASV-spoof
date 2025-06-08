@@ -75,6 +75,8 @@ def main():
                         help='Pular treinamento')
     parser.add_argument('--skip-testing', action='store_true',
                         help='Pular teste')
+    parser.add_argument('--convert-labels', action='store_true',
+                        help='Converter labels antes de processar')
     
     args = parser.parse_args()
     
@@ -84,11 +86,13 @@ def main():
     features_dir = os.path.join(experiment_dir, "features")
     checkpoints_dir = os.path.join(experiment_dir, "checkpoints")
     results_dir = os.path.join(experiment_dir, "results")
+    labels_dir = os.path.join(experiment_dir, "labels")
     
     os.makedirs(experiment_dir, exist_ok=True)
     os.makedirs(features_dir, exist_ok=True)
     os.makedirs(checkpoints_dir, exist_ok=True)
     os.makedirs(results_dir, exist_ok=True)
+    os.makedirs(labels_dir, exist_ok=True)
     
     # Criar configuração
     config_path = os.path.join(experiment_dir, "config.json")
@@ -97,6 +101,20 @@ def main():
     # Selecionar dataset
     dataset_key = f"ASVspoof2019{args.dataset}"
     dataset_config = config["datasets"][dataset_key]
+    
+    # Converter labels se solicitado
+    if args.convert_labels:
+        print(f"\n📝 Convertendo labels...")
+        cmd = [
+            sys.executable, "convert_protocols_simple.py",
+            "--dataset", args.dataset,
+            "--output-dir", labels_dir
+        ]
+        if run_command(cmd, "Conversão de labels"):
+            # Atualizar caminhos para usar labels convertidos
+            dataset_config["train_labels_file"] = os.path.join(labels_dir, args.dataset, "train_labels.txt")
+            dataset_config["dev_labels_file"] = os.path.join(labels_dir, args.dataset, "dev_labels.txt")
+            dataset_config["eval_labels_file"] = os.path.join(labels_dir, args.dataset, "eval_labels.txt")
     
     print(f"\n🚀 Iniciando pipeline para ASVspoof 2019 {args.dataset}")
     print(f"📊 Usando 30% dos dados (mantendo proporção genuíno/spoof)")

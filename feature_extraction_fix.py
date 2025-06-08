@@ -108,62 +108,79 @@ class FeatureExtractor:
         """Extrai características com amostragem proporcional."""
         os.makedirs(output_dir, exist_ok=True)
         
-        # Encontrar todos os arquivos
-        all_audio_files = []
-        for root, dirs, files in os.walk(audio_dir):
-            for file in files:
-                if file.endswith('.flac'):
-                    all_audio_files.append(os.path.join(root, file))
-        
-        # Carregar labels
+        # Carregar labels primeiro para saber quais arquivos processar
         file_labels = {}
+        file_ids_to_process = []
+        
         if os.path.exists(labels_file):
+            print(f"Carregando labels de: {labels_file}")
             with open(labels_file, 'r') as f:
                 for line in f:
                     parts = line.strip().split()
                     if len(parts) >= 2:
-                        file_id = parts[0]
+                        file_id = parts[1]  # ID está na segunda coluna
                         label = 'genuine' if parts[-1].lower() in ['bonafide', 'genuine'] else 'spoof'
                         file_labels[file_id] = label
+                        file_ids_to_process.append(file_id)
+        
+        print(f"Total de labels carregados: {len(file_labels)}")
         
         # Separar por classe
-        genuine_files = []
-        spoof_files = []
+        genuine_ids = [fid for fid, lbl in file_labels.items() if lbl == 'genuine']
+        spoof_ids = [fid for fid, lbl in file_labels.items() if lbl == 'spoof']
         
-        for audio_path in all_audio_files:
-            file_id = os.path.splitext(os.path.basename(audio_path))[0]
-            if file_id in file_labels:
-                if file_labels[file_id] == 'genuine':
-                    genuine_files.append(audio_path)
-                else:
-                    spoof_files.append(audio_path)
+        print(f"Labels - Genuine: {len(genuine_ids)}, Spoof: {len(spoof_ids)}")
         
         # Amostrar proporcionalmente
-        n_genuine = int(len(genuine_files) * sample_proportion)
-        n_spoof = int(len(spoof_files) * sample_proportion)
+        n_genuine = int(len(genuine_ids) * sample_proportion)
+        n_spoof = int(len(spoof_ids) * sample_proportion)
         
-        sampled_genuine = random.sample(genuine_files, n_genuine) if n_genuine > 0 else []
-        sampled_spoof = random.sample(spoof_files, n_spoof) if n_spoof > 0 else []
+        sampled_genuine = random.sample(genuine_ids, n_genuine) if n_genuine > 0 else []
+        sampled_spoof = random.sample(spoof_ids, n_spoof) if n_spoof > 0 else []
         
-        files_to_process = sampled_genuine + sampled_spoof
-        random.shuffle(files_to_process)
+        sampled_ids = sampled_genuine + sampled_spoof
+        random.shuffle(sampled_ids)
         
-        print(f"Processando {len(files_to_process)} arquivos ({n_genuine} genuínos, {n_spoof} spoof)")
+        print(f"Amostragem: {len(sampled_ids)} arquivos ({n_genuine} genuínos, {n_spoof} spoof)")
         
         # Processar arquivos
-        for audio_path in tqdm(files_to_process, desc="Extraindo características"):
-            try:
-                filename = os.path.basename(audio_path)
-                file_id = os.path.splitext(filename)[0]
-                
-                features = self.extract_features(audio_path)
-                if features is not None:
-                    output_path = os.path.join(output_dir, f"{file_id}.npz")
-                    np.savez(output_path, **features)
-            except Exception as e:
-                print(f"Erro ao processar {audio_path}: {str(e)}")
+        processed_count = 0
+        not_found_count = 0
         
-        print(f"Extração concluída. Características salvas em: {output_dir}")
+        for file_id in tqdm(sampled_ids, desc="Extraindo características"):
+            # Tentar encontrar o arquivo de áudio
+            audio_path = None
+            
+            # Tentar diferentes padrões de caminho
+            possible_paths = [
+                os.path.join(audio_dir, f"{file_id}.flac"),
+                os.path.join(audio_dir, "flac", f"{file_id}.flac"),
+            ]
+            
+            # Procurar recursivamente
+            for root, dirs, files in os.walk(audio_dir):
+                if f"{file_id}.flac" in files:
+                    audio_path = os.path.join(root, f"{file_id}.flac")
+                    break
+            
+            if audio_path and os.path.exists(audio_path):
+                try:
+                    features = self.extract_features(audio_path)
+                    if features is not None:
+                        output_path = os.path.join(output_dir, f"{file_id}.npz")
+                        np.savez(output_path, **features)
+                        processed_count += 1
+                except Exception as e:
+                    print(f"\nErro ao processar {audio_path}: {str(e)}")
+            else:
+                not_found_count += 1
+                if not_found_count <= 5:  # Mostrar apenas os primeiros 5
+                    print(f"\nArquivo não encontrado: {file_id}.flac")
+        
+        print(f"\nExtração concluída:")
+        print(f"  - Processados: {processed_count}/{len(sampled_ids)}")
+        print(f"  - Não encontrados: {not_found_count}")
+        print(f"  - Características salvas em: {output_dir}")
 
 
 def main():

@@ -59,17 +59,56 @@ class SimpleDataset(torch.utils.data.Dataset):
         self.max_length = max_length
         self.data = []
         
+        # Verificar se o diretório existe
+        if not os.path.exists(features_dir):
+            raise ValueError(f"Diretório de características não encontrado: {features_dir}")
+        
+        # Listar arquivos .npz disponíveis
+        available_files = [f for f in os.listdir(features_dir) if f.endswith('.npz')]
+        print(f"Arquivos .npz encontrados em {features_dir}: {len(available_files)}")
+        
         # Carregar labels
+        labels_count = 0
+        matched_count = 0
+        
         with open(labels_file, 'r') as f:
             for line in f:
                 parts = line.strip().split()
                 if len(parts) >= 2:
-                    file_id = parts[0]
-                    label = 1 if parts[1] == 'spoof' else 0
+                    labels_count += 1
+                    file_id = parts[1]  # O ID do arquivo está na segunda coluna
+                    
+                    # Determinar o label
+                    if parts[-1].lower() in ['bonafide', 'genuine']:
+                        label = 0  # genuine
+                    else:
+                        label = 1  # spoof
                     
                     feature_path = os.path.join(features_dir, f"{file_id}.npz")
                     if os.path.exists(feature_path):
                         self.data.append((feature_path, label))
+                        matched_count += 1
+        
+        print(f"Labels no arquivo: {labels_count}")
+        print(f"Arquivos correspondentes encontrados: {matched_count}")
+        print(f"Dataset final: {len(self.data)} amostras")
+        
+        if len(self.data) == 0:
+            # Tentar mostrar alguns exemplos para debug
+            print("\nExemplos de nomes de arquivos .npz:")
+            for i, f in enumerate(available_files[:5]):
+                print(f"  {f}")
+            
+            print("\nExemplos de IDs nos labels:")
+            with open(labels_file, 'r') as f:
+                for i, line in enumerate(f):
+                    if i >= 5:
+                        break
+                    parts = line.strip().split()
+                    if len(parts) >= 2:
+                        print(f"  {parts[1]}")
+            
+            raise ValueError("Nenhuma correspondência encontrada entre labels e características!")
     
     def __len__(self):
         return len(self.data)
