@@ -118,8 +118,16 @@ class FeatureExtractor:
                 for line in f:
                     parts = line.strip().split()
                     if len(parts) >= 2:
-                        file_id = parts[1]  # ID está na segunda coluna
-                        label = 'genuine' if parts[-1].lower() in ['bonafide', 'genuine'] else 'spoof'
+                        # Verificar o formato do arquivo
+                        # Se tem 5 colunas, é o formato original
+                        if len(parts) >= 5:
+                            file_id = parts[1]  # ID está na segunda coluna
+                            label = 'genuine' if parts[-1].lower() in ['bonafide', 'genuine'] else 'spoof'
+                        else:
+                            # Formato convertido: file_id label
+                            file_id = parts[0]
+                            label = parts[1]
+                        
                         file_labels[file_id] = label
                         file_ids_to_process.append(file_id)
         

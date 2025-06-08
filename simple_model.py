@@ -76,10 +76,19 @@ class SimpleDataset(torch.utils.data.Dataset):
                 parts = line.strip().split()
                 if len(parts) >= 2:
                     labels_count += 1
-                    file_id = parts[1]  # O ID do arquivo está na segunda coluna
+                    
+                    # Verificar o formato
+                    if len(parts) >= 5:
+                        # Formato original do ASVspoof
+                        file_id = parts[1]  # Segunda coluna
+                        label_str = parts[-1].lower()
+                    else:
+                        # Formato convertido simples
+                        file_id = parts[0]  # Primeira coluna
+                        label_str = parts[1].lower()
                     
                     # Determinar o label
-                    if parts[-1].lower() in ['bonafide', 'genuine']:
+                    if label_str in ['bonafide', 'genuine']:
                         label = 0  # genuine
                     else:
                         label = 1  # spoof
@@ -106,7 +115,10 @@ class SimpleDataset(torch.utils.data.Dataset):
                         break
                     parts = line.strip().split()
                     if len(parts) >= 2:
-                        print(f"  {parts[1]}")
+                        if len(parts) >= 5:
+                            print(f"  {parts[1]}")
+                        else:
+                            print(f"  {parts[0]}")
             
             raise ValueError("Nenhuma correspondência encontrada entre labels e características!")
     
